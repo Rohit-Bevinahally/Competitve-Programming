@@ -173,14 +173,17 @@ class Segtree {
             ll op = EMPTY;
 			${3:ll val = 0;}
             void apply(ll v, ll l, ll r) {
+				assert(l <= r);
                 op = operation(op,v);
 				${4:val = operation(val,v);}
             }
         };
 
+		const node INVALID = {EMPTY,${5:0}};
+
         node combine(node a, node b) {
 			node res;
-			$5
+			$6
 			return res;
         }
 
@@ -213,7 +216,7 @@ class Segtree {
         }
 
         node get(int x, int tl, int tr, int l, int r) {
-            if(tr < l or tl > r) return node();
+            if(tr < l or tl > r) return INVALID;
             if(l <= tl and tr <= r) {
                 return tree[x];
             }
@@ -343,6 +346,135 @@ class Tree {
             return up[a][0];
         }
         int dist(int a,int b){ return d[a] + d[b] - 2*d[lca(a,b)]; }
+};
+
+endsnippet
+
+# Strongly Connected Components : 
+snippet scc
+vector<vector<int>> adj,radj;
+
+class SCC {
+    public:
+        int n,comps;
+        vector<int> order,vis,comp;
+        SCC(int n) : n(n) {
+            vis.resize(n);
+            comp = vis;
+            comps = 0;
+            makeSCC();
+        }
+        void dfs(int s) {
+            vis[s] = 1;
+            for(auto u : adj[s]) {
+                if(!vis[u]) dfs(u);
+            }
+            order.push_back(s);
+        }
+        void dfs1(int s) {
+            comp[s] = comps;
+            vis[s] = 1;
+            for(auto u : radj[s]) {
+                if(!vis[u]) dfs1(u);
+            }
+        }
+        void makeSCC() {
+            for(int i = 0; i < n; i++) if(!vis[i]) dfs(i);
+            reverse(begin(order),end(order));
+            vis.assign(n,0);
+            for(auto u : order)  if(!vis[u]) {
+                dfs1(u);
+                comps++;
+            }
+        }
+};
+
+endsnippet
+
+# Edge Bi-Connected Components
+snippet ebcc "list of components, list of bridges and compressed graph"
+	struct BridgeTree {
+    int n, comp_count = 0, timer = 0;
+    vector<vector<int>> adj, block_adj, comps;
+    vector<int> low, d, p, st, comp_id;
+    vector<pair<int,int>> bridges;
+
+    BridgeTree(vector<vector<int>> adj) : adj(adj) {
+        n = (int)adj.size();
+        d.resize(n);
+        p.assign(n,-1);
+        low = comp_id = d;
+        build();
+    }
+
+    void dfs(int s) {
+        low[s] = d[s] = ++timer;
+        st.push_back(s);
+        bool multiple_edges = false;
+        for(auto u : adj[s]) {
+            if(u == p[s] and !multiple_edges) {
+                multiple_edges = true;
+                continue;
+            }
+            if(d[u]) {
+                low[s] = min(low[s], d[u]);
+            } else {
+                p[u] = s;
+                dfs(u);
+                low[s] = min(low[s], low[u]);
+            }
+        }
+        if(low[s] == d[s]) {
+            comps.push_back({});
+            while(1) {
+                auto cur = st.back();
+                st.pop_back();
+                comps[comp_count].push_back(cur);
+                comp_id[cur] = comp_count;
+                if(cur == s) break;
+            }
+            comp_count++;
+            if(p[s] != -1) bridges.push_back({s,p[s]});
+        }
+    }
+
+    void build() {
+        for(int i = 0; i < n; i++) if(!d[i]) dfs(i);
+        block_adj.resize(comp_count);
+        for(auto [u,v] : bridges) {
+            block_adj[comp_id[u]].push_back(comp_id[v]);
+            block_adj[comp_id[v]].push_back(comp_id[u]);
+        }
+    }
+};
+
+endsnippet
+
+# Subtree Hashing :
+snippet sthash "Equivalence classes of isomorphic subtrees"
+struct SubtreeHash {
+    int n,root;
+    vector<vector<int>> adj;
+    vector<int> val;
+    map<vector<int>,int> vals;
+
+    SubtreeHash(int root, vector<vector<int>> adj) : root(root), adj(adj) {
+        n = adj.size();
+        val.assign(n,-1);
+        dfs(root,-1);
+    }
+
+    void dfs(int s,int e) {
+        vector<int> childVals;
+        for(auto u : adj[s]) {
+            if(u == e) continue;
+            dfs(u,s);
+            childVals.push_back(val[u]);
+        }
+        sort(begin(childVals),end(childVals));
+        if(!vals.contains(childVals)) vals[childVals] = vals.size();
+        val[s] = vals[childVals];
+    }
 };
 
 endsnippet
@@ -567,47 +699,6 @@ bool base_solution(T a,T b,T c,T& x,T& y,T& g) {
     if(b < 0) y = -y;
     return true;
 }
-endsnippet
-
-# Strongly Connected Components : 
-snippet scc
-vector<vector<int>> adj,radj;
-
-class SCC {
-    public:
-        int n,comps;
-        vector<int> order,vis,comp;
-        SCC(int n) : n(n) {
-            vis.resize(n);
-            comp = vis;
-            comps = 0;
-            makeSCC();
-        }
-        void dfs(int s) {
-            vis[s] = 1;
-            for(auto u : adj[s]) {
-                if(!vis[u]) dfs(u);
-            }
-            order.push_back(s);
-        }
-        void dfs1(int s) {
-            comp[s] = comps;
-            vis[s] = 1;
-            for(auto u : radj[s]) {
-                if(!vis[u]) dfs1(u);
-            }
-        }
-        void makeSCC() {
-            for(int i = 0; i < n; i++) if(!vis[i]) dfs(i);
-            reverse(begin(order),end(order));
-            vis.assign(n,0);
-            for(auto u : order)  if(!vis[u]) {
-                dfs1(u);
-                comps++;
-            }
-        }
-};
-
 endsnippet
 
 # 2SAT :
