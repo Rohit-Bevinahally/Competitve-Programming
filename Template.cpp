@@ -11,22 +11,28 @@ typedef pair<int, int> pi;
 typedef pair<ll,ll> pll;
 typedef vector<int> vi;
 typedef vector<string> vs;
-typedef vector<bool> vb;
 typedef vector<ll> vll;
 typedef vector<pi> vpi;
 typedef vector<pll> vpll;
+template<typename T>
+using v = vector<T>;
 
 // Macros
-#define loop(i,k,n) for(auto i=k; i < n; i++)
-#define rloop(i,n,k) for(auto i=n-1; i >= k; i--)
+#define FOR(i,k,n) for(auto i=k; i<n; i++)
+#define ROF(i,n,k) for(auto i=n-1; i>=k; i--)
+#define rep(i,n) FOR(i,0,n) 
+#define per(i,n) ROF(i,n,0) 
 #define trv(x,a) for(auto& x:a)
+#define rtrv(x,a) for(auto& x:a | views::reverse)
 #define all(x) x.begin(),x.end()
 #define rall(x) x.rbegin(),x.rend()
+#define sz(x) (int)x.size()
 #define lb lower_bound
 #define ub upper_bound
 #define pb push_back
+#define eb emplace_back
 #define ins insert
-#define sz(x) (int)x.size()
+#define mp make_pair
 #define f first
 #define s second
 
@@ -50,16 +56,16 @@ template<class T> void inp(T& x) { cin >> x; }
 template<class H, class... T> void inp(H& h, T&... t) { inp(h); inp(t...); }
 template<class A> void inp(vector<vector<A>>& x) { trv(a,x) inp(a); }
 
+// rng :
+mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
+#define uid(a, b) uniform_int_distribution<int>(a, b)(rng)
+
 // Debug :
 #ifdef LOCAL
 #include "../Library/debug.cpp"
 #else
 #define debug(...) ""
 #endif
-
-// rng :
-mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
-#define uid(a, b) uniform_int_distribution<int>(a, b)(rng)
 // }}}
 
 // Constants :
@@ -82,4 +88,3 @@ int main() {
     }
  	return (0-0);
 }
-
