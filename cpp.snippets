@@ -46,8 +46,8 @@ struct mint{
 	mint& operator/=(const mint& m) { return (*this) *= inv(m); }
 	mint& operator++() { return *this += 1; }
 	mint& operator--() { return *this -= 1; }
-    mint operator++(int) { mint temp; temp.v = v++; return temp; }
-    mint operator--(int) { mint temp; temp.v = v--; return temp; }
+    mint operator++(int) { mint temp = *this; ++*this; return temp; }
+    mint operator--(int) { mint temp = *this; --*this; return temp; }
 	mint operator-() const { return mint(-v); }
 	friend mint operator+(mint a, const mint& b) { return a += b; }
 	friend mint operator-(mint a, const mint& b) { return a -= b; }
@@ -67,7 +67,8 @@ struct mint{
         return is; }
 };
 
-vector<mint> fac,invfac;
+typedef vector<mint> vmi;
+vmi fac,invfac;
 void prefac(int N){
     fac.resize(N),invfac.resize(N);
     fac[0] = 1;
@@ -82,6 +83,62 @@ mint ncr(int n,int r){
 
 endsnippet
 
+snippet matrix "Matrix operations"
+template<class T>
+struct Matrix {
+    int n,m;
+    vector<vector<T>> M;
+    Matrix(int _n, int _m, T val = 0) : n(_n), m(_m) {
+        M = vector(n, vector<T>(m,val));
+    }
+    Matrix(vector<vector<T>> _M) : M(_M) {
+        n = (int)_M.size();
+        m = (int)_M[0].size();
+    }
+    static Matrix I(int _n) {
+        Matrix res(_n,_n);
+        for(int i = 0; i < _n; i++) res.M[i][i] = 1;
+        return res;
+    }
+    Matrix& operator *= (const  Matrix& a) {
+        assert(m == a.n); 
+        Matrix res(n,a.m);
+        for(int i = 0; i < n; i++) {
+            for(int k = 0; k < m; k++) {
+                for(int j = 0; j < a.m; j++) {
+                    res.M[i][j] += M[i][k] * a.M[k][j];
+                }
+            }
+        }
+        return *this = res;
+    }
+    friend Matrix operator * (Matrix a, const Matrix& b) {
+        return a *= b;
+    }
+    Matrix& operator += (const Matrix& a) {
+        assert(n == a.n and m == a.m); 
+        for(int i = 0; i < n; i++) {
+            for(int j = 0; j < m; j++) {
+                M[i][j] += a.M[i][j];
+            }
+        }
+        return *this;
+    }
+    friend Matrix operator + (Matrix a, const Matrix& b) {
+        return a += b;
+    }
+    template<typename P>
+    Matrix operator ^ (P p) {
+        assert(n == m);
+        Matrix res = I(n);
+        Matrix _M = *this;
+        for(; p; p /= 2, _M = _M * _M) if(p & 1) res = res * _M;
+        return res;
+    }
+};
+
+endsnippet
+	
 # Sparse Table :
 snippet sparse
 template <typename T, class F = function<T(const T&, const T&)>>
@@ -135,134 +192,186 @@ endsnippet
 # Segment Tree :
 snippet seg
 template<typename T,class F = function<T(const T&,const T&)>>
-class Segtree {
-    public :
-        int n; vector<T> t;
-        F comp;
-        T dv;
-        Segtree(const vector<T>& a,const T val,const F& f) : comp(f){
-            dv = val; n = sz(a) + 1; t.assign(2*n,dv);
-            for(int i = 1; i < n; i++) upd(i,a[i-1]);
+struct Segtree {
+    int n; vector<T> t;
+    F comb;
+    T dv;
+    Segtree(int _n, const T val, const F& f) : n(_n+1), comb(f), dv(val) {
+        t.assign(2*n,dv);
+    }
+    Segtree(const vector<T>& a, const T val, const F& f) : comb(f), dv(val) {
+        n = (int)a.size() + 1; 
+        t.assign(2*n,dv);
+        for(int i = 1; i < n; i++) upd(i,a[i-1]);
+    }
+    void pull(int p) { t[p] = comb(t[2*p],t[2*p+1]); }
+    void upd(int p,T val) {
+        assert(1 <= p and p <= n);
+        for(t[p += n] = val,p /= 2;p;p /= 2) pull(p);}
+    T get(int l,int r) {
+        assert(1 <= l and r <= n);
+        T right = dv,left = dv;
+        for(l += n,r += n+1; l < r; l /= 2, r /= 2){
+            if(l & 1) left = comb(left,t[l++]);
+            if(r & 1) right = comb(t[--r],right);
         }
-        void pull(int p) { t[p] = comp(t[2*p],t[2*p+1]); }
-        void upd(int p,T val){
-            for(t[p += n] = val,p /= 2;p;p /= 2) pull(p);}
-        T rq(int l,int r) {
-            T right = dv,left = dv;
-            for(l += n,r += n+1; l < r; l /= 2, r /= 2){
-                if(l & 1) left = comp(left,t[l++]);
-                if(r & 1) right = comp(t[--r],right);
-            }
-            return comp(left,right);
-        }
+        return comb(left,right);
+    }
 };
 
 endsnippet
 
 # Segment Tree with Lazy Propogation and RURQ :
 snippet lazy
-class Segtree {
-    public:
-        static const ll EMPTY = ${1:0};
-        
-        static ll operation(ll a, ll b) {
-            return ${2:a + b;}
-        }
-
-        struct node {
-            ll op = EMPTY;
-			${3:ll val = 0;}
-            void apply(ll v, ll l, ll r) {
-				assert(l <= r);
-                op = operation(op,v);
-				${4:val = operation(val,v);}
-            }
-        };
-
-		const node INVALID = {EMPTY,${5:0}};
-
-        node combine(node a, node b) {
-			node res;
-			$6
-			return res;
-        }
-
-        int n;
-        vector<node> tree;
-        
-        void push(int x, int tl, int tr) {
-            if(tl == tr or tree[x].op == EMPTY) return;
-            int m = (tl + tr)/2;
-            tree[2*x].apply(tree[x].op,tl,m);
-            tree[2*x+1].apply(tree[x].op,m+1,tr);
-            tree[x].op = EMPTY;
-        }
-
-        void pull(int x) { 
-            tree[x] = combine(tree[2*x],tree[2*x+1]);
-        }
-
-        void modify(int x, int tl, int tr, int l, int r, ll v) {
-            if(tr < l or tl > r) return;
-            if(l <= tl and tr <= r) {
-                tree[x].apply(v,tl,tr);
-                return;
-            }
-            push(x,tl,tr);
-            int m = (tl + tr)/2;
-            modify(2*x,tl,m,l,r,v);
-            modify(2*x+1,m+1,tr,l,r,v);
-            pull(x);
-        }
-
-        node get(int x, int tl, int tr, int l, int r) {
-            if(tr < l or tl > r) return INVALID;
-            if(l <= tl and tr <= r) {
-                return tree[x];
-            }
-            push(x,tl,tr);
-            int m = (tl + tr)/2;
-            node left = get(2*x,tl,m,l,r);
-            node right = get(2*x+1,m+1,tr,l,r);
-            pull(x);
-            return combine(left,right);
-        }
-
-        void modify(int l,int r,ll v) {
-            assert(1 <= l and r <= n);
-            modify(1,1,n,l,r,v);
-        }
-
-        node get(int l, int r) {
-            assert(1 <= l and r <= n);
-            return get(1,1,n,l,r);
-        }
-
-        node get(int p) { return get(p,p); }
-
-        Segtree(int _n) : n(_n) {
-            assert(n > 0);
-            tree.resize(4*n);
-        }
-        template<typename T>
-        Segtree(const vector<T> &v) {
-            n = v.size();
-            assert(n > 0);
-            tree.resize(4*n);
-            build(1,1,n,v);
-        }
-        template<typename T>
-        void build(int x, int l, int r, const vector<T> &v) {
+template<class Info, class Tag>
+struct Segtree {
+    int n;
+    vector<Info> info;
+    vector<Tag> tag;
+ 
+    Segtree() : n(0) {}
+    Segtree(int _n, Info _v = {}) : Segtree(vector(_n,_v)) {}
+    template<class T>
+    Segtree(vector<T> _v) {
+        n = _v.size();
+        info.assign(4 << __lg(n), {});
+        tag.assign(4 << __lg(n), {});
+        auto build = [&](auto self, int x, int l, int r) {
             if(l == r) {
-                tree[x].apply(v[l-1],l,r);
+                info[x] = _v[l-1];
                 return;
             }
-            int m = (l + r)/2;
-            build(2*x,l,m,v);
-            build(2*x+1,m+1,r,v);
+            int m = (l + r) / 2;
+            self(self, 2 * x, l, m);
+            self(self, 2 * x + 1, m + 1, r);
             pull(x);
+        };
+        build(build, 1, 1, n);
+    }
+ 
+    void apply(int x, int l, int r, const Tag& v) {
+        info[x].apply(v);
+        tag[x].apply(v);
+    }
+    void push(int x, int l, int r) {
+        int m = (l + r) / 2;
+        apply(2 * x, l, m, tag[x]);
+        apply(2 * x + 1, m + 1, r, tag[x]);
+        tag[x] = {};
+    }
+    void pull(int x) {
+        info[x] = info[2 * x] + info[2 * x + 1];
+    }
+ 
+    void setval(int x, int tl, int tr, int p, const Info& v) {
+        if(tl == tr) {
+            info[x] = v;
+            return;
         }
+        push(x, tl, tr);
+        int m = (tl + tr) / 2;
+        if(p <= m) {
+            setval(2 * x, tl, m, p, v);
+        } else {
+            setval(2 * x + 1, m + 1, tr, p, v);
+        }
+        pull(x);
+    }
+    void setval(int p, const Info& v) {
+        setval(1, 1, n, p, v);
+    }
+ 
+    void modify(int x, int tl, int tr, int l, int r, const Tag& v) {
+        if(tr < l or tl > r) {
+            return;
+        }
+        if(l <= tl and tr <= r) {
+            apply(x, tl, tr, v);
+            return;
+        }
+        push(x, tl, tr);
+        int m = (tl + tr) / 2;
+        modify(2 * x, tl, m, l, r, v);
+        modify(2 * x + 1, m + 1, tr, l, r, v);
+        pull(x);
+    }
+    void modify(int l, int r, const Tag& v) {
+        modify(1, 1, n, l, r, v);
+    }
+ 
+    Info get(int x, int tl, int tr, int l, int r) {
+        if(tr < l or tl > r) {
+            return {};
+        }
+        if(l <= tl and tr <= r) {
+            return info[x];
+        }
+        push(x, tl, tr);
+        int m = (tl + tr) / 2;
+        return get(2 * x, tl, m, l, r) + get(2 * x + 1, m + 1, tr, l, r);
+    }
+    Info get(int l, int r) {
+        return get(1, 1, n, l, r);
+    }
+ 
+    template<class F>
+    int findFirst(int x, int tl, int tr, int l, int r, F pred) {
+        if(tr < l or tl > r or !pred(info[x])) {
+            return -1;
+        }
+        if(tl == tr) {
+            return tl;
+        }
+        push(x, tl, tr);
+        int m = (tl + tr) / 2;
+        int res = findFirst(2 * x, tl, m, l, r, pred);
+        if(res == -1) {
+            res = findFirst(2 * x + 1, m + 1, tr, l, r, pred);
+        }
+        return res;
+    }
+    template<class F>
+    int findFirst(int l, int r, F pred) {
+        return findFirst(1, 1, n, l, r, pred);
+    }
+    
+    template<class F>
+    int findLast(int x, int tl, int tr, int l, int r, F pred) {
+        if(tr < l or tl > r or !pred(info[x])) {
+            return -1;
+        }
+        if(tl == tr) {
+            return tl;
+        }
+        push(x, tl, tr);
+        int m = (tl + tr) / 2;
+        int res = findLast(2 * x + 1, m + 1, tr, l, r, pred);
+        if(res == -1) {
+            res = findLast(2 * x, tl, m, l, r, pred);
+        }
+        return res;
+    }
+    template<class F>
+    int findLast(int l, int r, F pred) {
+        return findLast(1, 1, n, l, r, pred);
+    }
 };
+ 
+struct Tag {
+    ll add = 0;
+    void apply(const Tag& t) {
+        add += t.add;
+    }
+};
+struct Info {
+	ll val;
+    void apply(const Tag& t) {
+       val += t.add;
+    }
+};
+Info operator+ (const Info& a, const Info& b) {
+	return max(a.val, b.val);
+}
 
 endsnippet
 
@@ -673,6 +782,26 @@ template<class T> T kruskal(int N,vector<pair<T,pi>> edges){
 
 endsnippet
 
+# Prime factorization :
+snippet pfs "Prime factorization in O(logn)"
+template<typename T>
+vector<pair<T,int>> prime_factorize(T n) {
+    assert(n >= 1);
+    vector<pair<T,int>> ans;
+    for(T p = 2; p * p <= n; p += p % 2 + 1) {
+        if(n % p == 0) {
+            ans.emplace_back(p,0);
+            do {
+                n /= p;
+                ans.back().second++;
+            } while(n % p == 0);
+        }
+    }
+    if(n > 1) ans.emplace_back(n,1);
+    return ans;
+}
+endsnippet
+
 # Linear Diophantine Equation Solver : 
 snippet dio
 // General Solution : {x0 + k(b/g), y0 - k(a/g)}
@@ -785,6 +914,58 @@ template<class F> struct Dinic {
     }
 };
 
+endsnippet
+
+snippet mo "Implements Mo's algorithm"
+struct Q {
+    int l,r,id;
+};
+
+template<class T>
+struct Mo {
+    int n,B,q;
+    vector<Q> queries;
+
+    Mo(int _n, vector<Q> qu) : n(_n), queries(qu) {
+        B = sqrt(n);
+        q = (int)qu.size();
+        auto comp = [&](Q a, Q b) {
+            if(a.l/B == b.l/B) return a.r < b.r;
+            return a.l/B < b.l/B;
+        };
+        sort(begin(queries),end(queries),comp);
+    }
+    void add(int x) {
+
+    }
+    void remove(int x) {
+
+    }
+    vector<T> solve() {
+        vector<T> ans(q);
+        int l = 0,r = -1;
+        for(auto& [ql,qr,id] : queries) {
+            while(r < qr) {
+                r++;
+                add(r);
+            }
+            while(r > qr) {
+                remove(r);
+                r--;
+            }
+            while(l < ql) {
+                remove(l);
+                l++;
+            }
+            while(l > ql) {
+                l--;
+                add(l);
+            }
+            ans[id] = curAns;
+        }
+        return ans;
+    }
+};
 endsnippet
 # ------------------------------------------------------------------------------------------------------------------------
 
