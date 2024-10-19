@@ -14,8 +14,8 @@ typedef vector<string> vs;
 typedef vector<ll> vll;
 typedef vector<pi> vpi;
 typedef vector<pll> vpll;
-template<typename T>
-using v = vector<T>;
+template<typename T> using v = vector<T>;
+template<typename T, int N> using a = array<T, N>; 
 
 // Macros
 #define FOR(i,k,n) for(auto i=k; i<n; i++)
@@ -56,16 +56,25 @@ template<class T> void inp(T& x) { cin >> x; }
 template<class H, class... T> void inp(H& h, T&... t) { inp(h); inp(t...); }
 template<class A> void inp(vector<vector<A>>& x) { trv(a,x) inp(a); }
 
+// Apply offset :
+template<class T> vector<T> operator+(vector<T> v, T x) { trv(a,v) a += x; return v; }
+template<class T> pair<T,T> operator+(pair<T, T> p, T x) { p.f += x, p.s += x; return p; }
+
 // rng :
 mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
 #define uid(a, b) uniform_int_distribution<int>(a, b)(rng)
 
-// Debug :
-#ifdef LOCAL
-#include "../Library/debug.cpp"
-#else
-#define debug(...) ""
-#endif
+// I/O Handling
+void setIO(string name = "", bool output_to_file = true){
+    if(name.length()){
+        string input = name + ".txt", output = name + "Out.txt";
+        if(freopen(input.c_str(),"r",stdin) == NULL) cerr << "Input Error" << endl; 
+        if(output_to_file) if(freopen(output.c_str(),"w",stdout) == NULL) cerr << "Output Error" << endl;
+    } else {
+        cin.tie(0)->sync_with_stdio(0);
+        cin.exceptions(cin.failbit);
+    }
+}
 // }}}
 
 // Constants :
@@ -75,15 +84,22 @@ const ll INF = 0x3f3f3f3f3f3f3f3f;
 const ld eps = 1e-9;
 const char nl = '\n';
 
+// Debug :
+#ifdef LOCAL
+#include "../Library/debug.cpp"
+#else
+#define debug(...) ""
+#endif
+
 void solve() {
 }
 
 int main() {
-    cin.tie(0)->sync_with_stdio(0);
-    cin.exceptions(cin.failbit);
+    setIO();
     int tc = 1;
-    cin >> tc;     
-    while(tc--) {
+    inp(tc);          
+    for(int i = 1; i <= tc; i++) {
+        cout << "Case #" << i << ": ";
         solve();
     }
  	return (0-0);

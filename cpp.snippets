@@ -23,6 +23,7 @@ endsnippet
 
 # Modular arithmetic :
 snippet mint 
+#ifndef LOCAL
 struct mint{
 	ll v; explicit operator ll() const { return v; }
 	mint() { v = 0; }
@@ -66,6 +67,7 @@ struct mint{
         m.v = x;
         return is; }
 };
+#endif
 
 typedef vector<mint> vmi;
 vmi fac,invfac;
@@ -196,22 +198,23 @@ struct Segtree {
     int n; vector<T> t;
     F comb;
     T dv;
-    Segtree(int _n, const T val, const F& f) : n(_n+1), comb(f), dv(val) {
-        t.assign(2*n,dv);
+    Segtree(int _n, const T val, const T _dv, const F& f) : n(_n), comb(f), dv(_dv) {
+        t.assign(2*n, dv);
+        for(int i = 0; i < n; i++) upd(i, val);
     }
-    Segtree(const vector<T>& a, const T val, const F& f) : comb(f), dv(val) {
-        n = (int)a.size() + 1; 
-        t.assign(2*n,dv);
-        for(int i = 1; i < n; i++) upd(i,a[i-1]);
+    Segtree(const vector<T>& a, const T _dv, const F& f) : comb(f), dv(_dv) {
+        n = (int)a.size(); 
+        t.assign(2*n, dv);
+        for(int i = 0; i < n; i++) upd(i,a[i]);
     }
-    void pull(int p) { t[p] = comb(t[2*p],t[2*p+1]); }
-    void upd(int p,T val) {
-        assert(1 <= p and p <= n);
-        for(t[p += n] = val,p /= 2;p;p /= 2) pull(p);}
-    T get(int l,int r) {
-        assert(1 <= l and r <= n);
+    void upd(int p,T val) { // 0-based indexing
+        assert(0 <= p and p < n);
+        for (t[p += n] = val; p >>= 1; ) t[p] = comb(t[p<<1], t[p<<1|1]);
+    }
+    T get(int l,int r) { // [l,r)
+        assert(0 <= l and r <= n);
         T right = dv,left = dv;
-        for(l += n,r += n+1; l < r; l /= 2, r /= 2){
+        for(l += n,r += n; l < r; l >>= 1, r >>= 1){
             if(l & 1) left = comb(left,t[l++]);
             if(r & 1) right = comb(t[--r],right);
         }
@@ -370,7 +373,7 @@ struct Info {
     }
 };
 Info operator+ (const Info& a, const Info& b) {
-	return max(a.val, b.val);
+	return {max(a.val, b.val)};
 }
 
 endsnippet
@@ -381,128 +384,143 @@ template<class T>
 struct Fenwick {
     int n;
     vector<T> val;
-    Fenwick(int N) : n(N) { val.resize(N+1); }
-    void upd(int pos,T x) {
-        for(; pos <= n; pos += pos&-pos) val[pos] += x;
+    Fenwick(int N) : n(N) { val.resize(N); }
+    void upd(int pos,T x) { // 0-based indexing
+        for(++pos; pos <= n; pos += pos&-pos) val[pos-1] += x;
     }
-    T sum(int pos) {
+    T sum(int pos) { // [0,pos)
         T res = 0;
-        for(; pos; pos -= pos&-pos) res += val[pos];
+        for(; pos; pos -= pos&-pos) res += val[pos-1];
         return res;
     }
-    T query(int l,int r) { return sum(r) - sum(l-1); }
+    T sum(int l,int r) { // [l,r)
+        return sum(r) - sum(l); 
+    }
 };
 
 endsnippet
 
 # Tree with LCA,binary lifting and Euler tour :
 snippet tree
-class Tree {
-    public:
-        int n,L,t,root;
-        vector<vector<int>> up,adj;
-        vector<int> d,st,en,order;
+struct Tree {
+    int n,L,t,root;
+    vector<vector<int>> up,adj;
+    vector<int> d,st,en,order;
 
-        void init(){
-            order.clear();
-            d = st = en = vector<int>(n);
-            L = ceil(log2(n));
-            up.resize(n,vector<int>(L+1));
-            t = 1;
-            dfs(root,root);
-        }
-        Tree(int N,vector<vector<int>> adj,int root = 0) : n(N),root(root),adj(adj){ init(); }
-        Tree(int N,vector<int> p) : n(N){
-            assert(N == (int)p.size());
-            adj.resize(n);
-            for(int i = 0; i < N; i++){
-                if(p[i] == -1) root = i;
-                else{
-                    adj[i].push_back(p[i]);
-                    adj[p[i]].push_back(i);
-                }
+    void init() {
+        order.clear();
+        d = st = en = vector<int>(n);
+        L = ceil(log2(n));
+        up.resize(L + 1, vector<int>(n));
+        t = 1;
+        dfs(root,root);
+    }
+    Tree(int N,vector<vector<int>> adj,int root = 0) : n(N),root(root),adj(adj) { init(); }
+    Tree(int N,vector<int> p) : n(N) {
+        assert(N == (int)p.size());
+        adj.resize(n);
+        for(int i = 0; i < N; i++) {
+            if(p[i] == -1) root = i;
+            else {
+                adj[i].push_back(p[i]);
+                adj[p[i]].push_back(i);
             }
-            init();
         }
-        void dfs(int s,int e){
-            order.push_back(s);
-            st[s] = t++;
-            for(int i = 1; i <= L; i++)
-                up[s][i] = up[up[s][i-1]][i-1];
-            
-            for(auto u : adj[s]){
-                if(u == e) continue;
-                d[u] = d[up[u][0] = s] + 1;
-                dfs(u,s);
-            }
-            en[s] = t-1;
+        init();
+    }
+    void dfs(int s,int e) {
+        order.push_back(s);
+        st[s] = t++;
+        up[0][s] = e;
+        for(int i = 1; i <= L; i++) {
+            up[i][s] = up[i-1][up[i-1][s]];
         }
-        bool anc(int a,int b){ return st[a] <= st[b] and en[a] >= en[b]; }
-        int jump(int x,int k){
-            for(int i = 0; i <= L; i++) if(k >> i & 1){
-                x = up[x][i];
-            }
-            return x;
+        for(auto u : adj[s]) {
+            if(u == e) continue;
+            d[u] = d[s] + 1;
+            dfs(u,s);
         }
-        int lca(int a,int b){
-            if(d[a] < d[b]) swap(a,b);
-            a = jump(a,d[a] - d[b]);
-            if(a == b) return a;
-            for(int i = L; i >= 0; i--){
-                int na = up[a][i],nb = up[b][i];
-                if(na != nb) a = na,b = nb;
-            }
-            return up[a][0];
+        en[s] = t-1;
+    }
+    bool anc(int a,int b) { return st[a] <= st[b] and en[a] >= en[b]; }
+    int jump(int x,int k) {
+        for(int i = 0; i <= L; i++) if(k >> i & 1) {
+            x = up[i][x];
         }
-        int dist(int a,int b){ return d[a] + d[b] - 2*d[lca(a,b)]; }
+        return x;
+    }
+    int lca(int a,int b) {
+        if(d[a] < d[b]) swap(a,b);
+        a = jump(a,d[a] - d[b]);
+        if(a == b) return a;
+        for(int i = L; i >= 0; i--) {
+            int na = up[i][a],nb = up[i][b];
+            if(na != nb) a = na,b = nb;
+        }
+        return up[0][a];
+    }
+    int dist(int a,int b) { return d[a] + d[b] - 2*d[lca(a,b)]; }
 };
 
 endsnippet
 
 # Strongly Connected Components : 
 snippet scc
-vector<vector<int>> adj,radj;
+struct SCC {
+    int n,comps;
+    vector<int> order,vis,comp,csz;
+    vector<vector<int>> adj,radj;
+    vector<pair<int,int>> edges;
 
-class SCC {
-    public:
-        int n,comps;
-        vector<int> order,vis,comp;
-        SCC(int n) : n(n) {
-            vis.resize(n);
-            comp = vis;
-            comps = 0;
-            makeSCC();
+    SCC(int n) : n(n) {
+        vis.resize(n);
+        adj.resize(n);
+        radj.resize(n);
+        comp = vis;
+        comps = 0;
+    }
+    SCC(int n, vector<pair<int,int>> _edges) : SCC(n) {
+        edges = _edges;
+        for(auto& [u,v] : edges) {
+            addEdge(u,v);
         }
-        void dfs(int s) {
-            vis[s] = 1;
-            for(auto u : adj[s]) {
-                if(!vis[u]) dfs(u);
-            }
-            order.push_back(s);
+    }
+    void addEdge(int u, int v) {
+        adj[u].push_back(v);
+        radj[v].push_back(u);
+    }
+    void dfs(int s) {
+        vis[s] = 1;
+        for(auto u : adj[s]) {
+            if(!vis[u]) dfs(u);
         }
-        void dfs1(int s) {
-            comp[s] = comps;
-            vis[s] = 1;
-            for(auto u : radj[s]) {
-                if(!vis[u]) dfs1(u);
-            }
+        order.push_back(s);
+    }
+    void dfs1(int s) {
+        comp[s] = comps;
+        if((int)csz.size() == comps) csz.push_back(0);
+        csz.back()++;
+        vis[s] = 1;
+        for(auto u : radj[s]) {
+            if(!vis[u]) dfs1(u);
         }
-        void makeSCC() {
-            for(int i = 0; i < n; i++) if(!vis[i]) dfs(i);
-            reverse(begin(order),end(order));
-            vis.assign(n,0);
-            for(auto u : order)  if(!vis[u]) {
-                dfs1(u);
-                comps++;
-            }
+    }
+    void makeSCC() {
+        for(int i = 0; i < n; i++) if(!vis[i]) dfs(i);
+        reverse(begin(order),end(order));
+        vis.assign(n,0);
+        for(auto u : order)  if(!vis[u]) {
+            dfs1(u);
+            comps++;
         }
+    }
 };
 
 endsnippet
 
 # Edge Bi-Connected Components
 snippet ebcc "list of components, list of bridges and compressed graph"
-	struct BridgeTree {
+struct BridgeTree {
     int n, comp_count = 0, timer = 0;
     vector<vector<int>> adj, block_adj, comps;
     vector<int> low, d, p, st, comp_id;
@@ -559,6 +577,53 @@ snippet ebcc "list of components, list of bridges and compressed graph"
 
 endsnippet
 
+# Functional Graph : 
+snippet funcgraph "Stores cycle indices for each component"
+struct FunctionalGraph {
+    int n, comps = 0;
+    vector<int> nxt, comp_id, cyc_idx;
+    vector<vector<int>> cycles;
+
+    FunctionalGraph(vector<int> a) : nxt(a) {
+        n = (int)nxt.size();
+        comp_id.assign(n,-1);
+        cyc_idx = comp_id;
+        init();
+    }
+    void init() {
+        for(int i = 0; i < n; i++) if(comp_id[i] == -1) {
+            vector<int> nodes;
+            int cur = i;
+            while(comp_id[cur] == -1) {
+                nodes.push_back(cur);
+                comp_id[cur] = -2;
+                cur = nxt[cur];
+            }
+            bool inCycle = false;
+            int cid = (comp_id[cur] >= 0 ? comp_id[cur] : comps++);
+            int id = 0;
+            vector<int> cyc_nodes;
+            for(auto x : nodes) {
+                comp_id[x] = cid;
+                inCycle |= (x == cur);
+                if(inCycle) {
+                    cyc_idx[x] = id++;
+                    cyc_nodes.push_back(x);
+                }
+            }
+            if(inCycle) cycles.push_back(cyc_nodes);
+        }
+    }
+
+    int cycle_dist(int u, int v) {
+        if(comp_id[u] != comp_id[v]) return -1;
+        int cyc_len = (int)cycles[comp_id[u]].size();
+        return (cyc_idx[v] - cyc_idx[u] + cyc_len) % cyc_len; 
+    }
+};
+
+endsnippet
+	
 # Subtree Hashing :
 snippet sthash "Equivalence classes of isomorphic subtrees"
 struct SubtreeHash {
@@ -583,6 +648,66 @@ struct SubtreeHash {
         sort(begin(childVals),end(childVals));
         if(!vals.contains(childVals)) vals[childVals] = vals.size();
         val[s] = vals[childVals];
+    }
+};
+
+endsnippet
+
+# Trie
+snippet trie "Trie for small sized charsets"
+template<int A = 26, char F = 'a'>
+struct Trie {
+    static const int N = 1e6 + 5;
+    int n = 0;
+    int nxt[N][A];
+    int cnt[N]{};
+
+    Trie() { memset(nxt,-1,sizeof(nxt)); }
+    
+    void insert(string& s) {
+        int x = 0;
+        for(auto& C : s) {
+            auto& y = nxt[x][C-F];
+            if(y == -1) y = ++n;
+            x = y;
+            cnt[x]++;
+        }
+    }
+};
+
+endsnippet
+
+# XOR Basis
+snippet xorbasis "Maintains basis vectors for a set of bitmasks"
+template<class T>
+struct xor_basis {
+    int sz = 0;
+    int L;
+    vector<T> basis;
+    xor_basis(int _L) : L(_L) {
+        basis.resize(L);
+    }
+
+    void insert(T mask) {
+        for(int i = L-1; i >= 0; i--) {
+            if(~mask >> i & 1) continue;
+            if(!basis[i]) {
+                basis[i] = mask;
+                sz++;
+                return;
+            }
+            mask ^= basis[i];
+        }
+    }
+    bool canConstruct(T mask) {
+        for(int i = L-1; i >= 0; i--) {
+            if(~mask >> i & 1) continue;
+            if(!basis[i]) {
+                return false;
+            }
+            mask ^= basis[i];
+        }
+        return true;
     }
 };
 
@@ -710,60 +835,59 @@ endsnippet
 
 # Suffix Array with LCP : 
 snippet suffarr
-class SuffixArray {
-    public:
-        string s;
-        int n;
-        vector<int> p,c,lcp;
+struct SuffixArray {
+    string s;
+    int n;
+    vector<int> p,c,lcp;
 
-        SuffixArray(string _s) : s(_s) {
-            s += "#";
-            n = s.size();
-            p = c = lcp = vector<int>(n);
-            build();
+    SuffixArray(string _s) : s(_s) {
+        s += "#";
+        n = s.size();
+        p = c = lcp = vector<int>(n);
+        build();
+    }
+    void build() {
+        iota(p.begin(),p.end(),0);
+        sort(p.begin(),p.end(),[&](int i,int j){
+                return s[i] < s[j]; });
+        c[p[0]] = 0;
+        for(int i = 1; i < n; i++){
+            c[p[i]] = c[p[i-1]];
+            if(s[p[i]] != s[p[i-1]]) c[p[i]]++;
         }
-        void build() {
-            iota(p.begin(),p.end(),0);
-            sort(p.begin(),p.end(),[&](int i,int j){
-                    return s[i] < s[j]; });
-            c[p[0]] = 0;
+        vector<int> np(n),nc(n);
+        for(int k = 0; (1 << k) < n; k++){
+            int sh = (1 << k);
+            for(int i = 0; i < n; i++){
+                np[i] = (p[i] - sh + n) % n;
+            }
+            vector<int> cnt(n);
+            for(int i = 0; i < n; i++) cnt[c[np[i]]]++;
+            for(int i = 1; i < n; i++) cnt[i] += cnt[i-1];
+            for(int i = n-1; i >= 0; i--){
+                p[--cnt[c[np[i]]]] = np[i];
+            }
+            nc[p[0]] = 0;
             for(int i = 1; i < n; i++){
-                c[p[i]] = c[p[i-1]];
-                if(s[p[i]] != s[p[i-1]]) c[p[i]]++;
+                nc[p[i]] = nc[p[i-1]];
+                pair<int,int> cur = {c[p[i]],c[(p[i]+sh)%n]};
+                pair<int,int> nxt = {c[p[i-1]],c[(p[i-1]+sh)%n]};
+                if(cur != nxt) nc[p[i]]++;
             }
-            vector<int> np(n),nc(n);
-            for(int k = 0; (1 << k) < n; k++){
-                int sh = (1 << k);
-                for(int i = 0; i < n; i++){
-                    np[i] = (p[i] - sh + n) % n;
-                }
-                vector<int> cnt(n);
-                for(int i = 0; i < n; i++) cnt[c[np[i]]]++;
-                for(int i = 1; i < n; i++) cnt[i] += cnt[i-1];
-                for(int i = n-1; i >= 0; i--){
-                    p[--cnt[c[np[i]]]] = np[i];
-                }
-                nc[p[0]] = 0;
-                for(int i = 1; i < n; i++){
-                    nc[p[i]] = nc[p[i-1]];
-                    pair<int,int> cur = {c[p[i]],c[(p[i]+sh)%n]};
-                    pair<int,int> nxt = {c[p[i-1]],c[(p[i-1]+sh)%n]};
-                    if(cur != nxt) nc[p[i]]++;
-                }
-                swap(c,nc);
-            }
+            swap(c,nc);
         }
+    }
 
-        vector<int> LCP() {
-			int k = 0;
-            for(int i = 0; i < n - 1; i++) {
-                int j = p[c[i] - 1];
-                while(s[i + k] == s[j + k]) k++;
-                lcp[c[i] - 1] = k;
-                k = max(0,k-1);
-            }
-			return lcp;
+    vector<int> LCP() {
+        int k = 0;
+        for(int i = 0; i < n - 1; i++) {
+            int j = p[c[i] - 1];
+            while(s[i + k] == s[j + k]) k++;
+            lcp[c[i] - 1] = k;
+            k = max(0,k-1);
         }
+        return lcp;
+    }
 };
 
 endsnippet
@@ -783,11 +907,30 @@ template<class T> T kruskal(int N,vector<pair<T,pi>> edges){
 endsnippet
 
 # Prime factorization :
-snippet pfs "Prime factorization in O(logn)"
+snippet pfs "Prime factorization with(out) sieve"
+vector<int> minDivisor;
+void sieve(int n) {
+    minDivisor.resize(n + 1);
+    iota(begin(minDivisor), end(minDivisor), 0);
+    for(int i = 2; i * i <= n; i += i % 2 + 1) if(minDivisor[i] == i) {
+        for(int j = i * i; j <= n; j += i) if(minDivisor[j] == j) {
+            minDivisor[j] = i;
+        }
+    }
+}
 template<typename T>
 vector<pair<T,int>> prime_factorize(T n) {
     assert(n >= 1);
     vector<pair<T,int>> ans;
+    if(n < (T)minDivisor.size()) {
+        while(n > 1) {
+            T p = minDivisor[n];
+            if(ans.size() and p == ans.back().first) ans.back().second++;
+            else ans.emplace_back(p, 1);
+            n /= p;
+        }
+        return ans;
+    }
     for(T p = 2; p * p <= n; p += p % 2 + 1) {
         if(n % p == 0) {
             ans.emplace_back(p,0);
@@ -800,6 +943,7 @@ vector<pair<T,int>> prime_factorize(T n) {
     if(n > 1) ans.emplace_back(n,1);
     return ans;
 }
+
 endsnippet
 
 # Linear Diophantine Equation Solver : 
@@ -832,35 +976,30 @@ endsnippet
 
 # 2SAT :
 snippet 2sat
-class _2SAT {
-    public:
-        int n;
-        vector<bool> assignment;
-        _2SAT(int N) : n(2*N) {
-            assignment.resize(N);
-            adj.assign(n,{});
-            radj.assign(n,{});
+struct _2SAT {
+    int n;
+    vector<bool> assignment;
+    vector<pair<int,int>> edges;
+    _2SAT(int N) : n(2*N) {
+        assignment.resize(N);
+    }
+    bool solve_2SAT() {
+        SCC s(n,edges);
+        for (int i = 0; i < n; i += 2) {
+            if (s.comp[i] == s.comp[i + 1]) return false;
+            assignment[i/2] = s.comp[i] > s.comp[i + 1];
         }
-        bool solve_2SAT() {
-            SCC s(n);
-            for (int i = 0; i < n; i += 2) {
-                if (s.comp[i] == s.comp[i + 1]) return false;
-                assignment[i/2] = s.comp[i] > s.comp[i + 1];
-            }
-            return true;
-        }
-        void add_disjunction(int a, bool na, int b, bool nb){
-            a = 2*a ^ na;
-            b = 2*b ^ nb;
-            int neg_a = a ^ 1;
-            int neg_b = b ^ 1;
-            adj[neg_a].push_back(b);
-            radj[b].push_back(neg_a);
-            adj[neg_b].push_back(a);
-            radj[a].push_back(neg_b);
-        }
+        return true;
+    }
+    void add_disjunction(int a, bool na, int b, bool nb){
+        a = 2*a ^ na;
+        b = 2*b ^ nb;
+        int neg_a = a ^ 1;
+        int neg_b = b ^ 1;
+        edges.emplace_back(neg_a,b);
+        edges.emplace_back(neg_b,a);
+    }
 };
-
 endsnippet
 
 # Max Flow :
@@ -1012,3 +1151,32 @@ T divCeil(T a, T b) {
 }
 
 endsnippet
+
+snippet treegen "Generate random trees using Prufer Code"
+vector<pair<int,int>> tree_generator(int n) {
+    vector<pair<int,int>> edges;
+    vi prufer(n-2), cnt(n+1);
+    for(auto& P : prufer) {
+        P = uid(1,n);
+        cnt[P]++;
+    }
+    priority_queue<int> q;
+    for(int i = 1; i <= n; i++) if(!cnt[i]) q.push(i);
+    
+    for(auto& P : prufer) {
+        auto cur = q.top(); 
+        q.pop();
+        edges.emplace_back(P, cur);
+        if(--cnt[P] == 0) q.push(P);
+    }
+    auto x = q.top();
+    q.pop();
+    auto y = q.top();
+    q.pop();
+    edges.emplace_back(x,y);
+    assert((int)edges.size() == n-1);
+    return edges;
+}
+
+endsnippet
+
